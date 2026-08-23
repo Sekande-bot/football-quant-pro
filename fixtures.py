@@ -6,12 +6,13 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 load_dotenv()
+
+# Cloud reads secrets, local reads .env
 try:
     API_TOKEN = st.secrets["FOOTBALL_DATA_API_KEY"]
 except Exception:
     API_TOKEN = os.getenv("FOOTBALL_DATA_API_KEY")
 
-# Map API names to our DB names
 NAME_MAPPING = {
     "Manchester United": "Man United", "Wolverhampton Wanderers": "Wolves",
     "Sheffield United": "Sheffield Utd", "Nottingham Forest": "Nott'm Forest",
@@ -40,7 +41,6 @@ def get_upcoming_fixtures():
     url = "https://api.football-data.org/v4/matches"
     headers = {'X-Auth-Token': API_TOKEN}
     
-    # Fetch matches from today to 7 days from now
     today = datetime.now().strftime('%Y-%m-%d')
     next_week = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
     params = {'status': 'SCHEDULED', 'dateFrom': today, 'dateTo': next_week}
@@ -55,18 +55,11 @@ def get_upcoming_fixtures():
             home_api = match['homeTeam']['name']
             away_api = match['awayTeam']['name']
             
-            home_db = NAME_MAPPING.get(home_api, home_api)
-            away_db = NAME_MAPPING.get(away_api, away_api)
-            
-            # Extract just the YYYY-MM-DD part
-            match_date = match['utcDate'].split('T')[0]
-            league = match.get('competition', {}).get('name', 'Unknown League')
-            
             fixtures.append({
-                'home': home_db,
-                'away': away_db,
-                'date': match_date,
-                'league': league
+                'home': NAME_MAPPING.get(home_api, home_api),
+                'away': NAME_MAPPING.get(away_api, away_api),
+                'date': match['utcDate'].split('T')[0],
+                'league': match.get('competition', {}).get('name', 'Unknown League')
             })
             
         return pd.DataFrame(fixtures)

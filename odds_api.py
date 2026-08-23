@@ -3,10 +3,13 @@ import os
 import json
 import time
 from dotenv import load_dotenv
-
+import streamlit as st
 load_dotenv()
 
-SMART_API_KEY = os.getenv("SMART_API_KEY")
+try:
+    SMART_API_KEY = st.secrets["SMART_API_KEY"]
+except Exception:
+    SMART_API_KEY = os.getenv("SMART_API_KEY")
 CACHE_FILE = "odds_cache.json"
 CACHE_EXPIRY = 3600  # 1 hour
 
