@@ -18,6 +18,11 @@ LEAGUES = {
     "Scottish Premiership": "SC0",
     "Greek Super League": "G1",
     "UEFA Conference League": "ECL",
+    # second divisions
+    "Segunda Division": "SP2",
+    "Serie B": "I2",
+    "Bundesliga 2": "D2",
+    "Ligue 2": "F2",
 }
 
 SEASONS = ["2122", "2223", "2324", "2425", "2526"]
