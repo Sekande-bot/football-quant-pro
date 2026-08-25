@@ -18,23 +18,72 @@
       <span class="brand-name">Goal<span class="accent">Predict</span></span>
     </div>
     <nav>
-      <button class="nav-link active" data-view="predictions">Predictions</button>
-      <button class="nav-link" data-view="value">Value Scanner</button>
-      <button class="nav-link" data-view="backtest">Model Report</button>
+      <button class="nav-link active" data-view="picks">Today's Picks</button>
+      <button class="nav-link" data-view="builder">Bet Builder</button>
+      <button class="nav-link" data-view="value">Value Play</button>
+      <button class="nav-link" data-view="games">All Games</button>
     </nav>
-    <div id="status-pill" class="status-pill loading">Loading…</div>
+    <button id="slip-btn" class="slip-btn">🎫 Slip <span id="slip-count" class="slip-count">0</span></button>
   </div>
 </header>
 
 <main class="container">
 
-  <!-- ============ PREDICTIONS ============ -->
-  <section id="view-predictions" class="view active">
+  <!-- ============ TODAY'S PICKS ============ -->
+  <section id="view-picks" class="view active">
     <div class="page-head">
-      <h1>Match Predictions</h1>
-      <p class="sub">Dixon-Coles maximum-likelihood engine · rolling in-season form · every card includes a Banker Pick (≥70% model confidence, 91% verified hit-rate).</p>
+      <h1>Today's Picks</h1>
+      <p class="sub">The engine's recommended shortlist from all of today's fixtures — highest chance of landing, one pick per game.</p>
     </div>
+    <div id="picks-status"></div>
+    <div id="picks-list" class="stack"></div>
+  </section>
 
+  <!-- ============ BET BUILDER ============ -->
+  <section id="view-builder" class="view">
+    <div class="page-head">
+      <h1>Bet Builder</h1>
+      <p class="sub">Set a target payout, how many games, and your risk appetite — the engine assembles the accumulator.</p>
+    </div>
+    <div class="builder-panel">
+      <div class="builder-controls">
+        <label>Target total odds
+          <input type="number" id="bb-target" value="5.0" min="1.2" max="100" step="0.1">
+        </label>
+        <label>Number of games
+          <input type="number" id="bb-games" value="3" min="2" max="8">
+        </label>
+        <label>Risk level
+          <select id="bb-risk">
+            <option value="LOW">Low (≥75% per leg)</option>
+            <option value="MED" selected>Medium (60–75%)</option>
+            <option value="ALL">Any</option>
+          </select>
+        </label>
+        <button id="bb-go" class="btn primary">Build Accumulator</button>
+      </div>
+      <div id="bb-result"></div>
+    </div>
+  </section>
+
+  <!-- ============ VALUE PLAY ============ -->
+  <section id="view-value" class="view">
+    <div class="page-head">
+      <h1>Value Play</h1>
+      <p class="sub">Pure-model probability vs real bookmaker prices. Only genuine disagreements shown — never simulated odds.</p>
+    </div>
+    <table class="table" id="value-table">
+      <thead><tr><th>Fixture</th><th>Market</th><th>Model prob</th><th>Odds</th><th>Edge</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- ============ ALL GAMES ============ -->
+  <section id="view-games" class="view">
+    <div class="page-head">
+      <h1>All Games</h1>
+      <p class="sub">Every upcoming fixture with full model predictions.</p>
+    </div>
     <div class="filterbar">
       <div class="seg" id="window-seg">
         <button data-window="today">Today</button>
@@ -43,44 +92,33 @@
       </div>
       <select id="league-select"><option value="all">All leagues</option></select>
       <input type="search" id="search" placeholder="Search team…">
-      <button id="refresh" class="btn ghost" title="Refetch">↻</button>
     </div>
-
     <div id="pred-grid" class="grid"></div>
     <div id="pred-empty" class="empty hidden">No fixtures match. Try another window or league.</div>
   </section>
 
-  <!-- ============ VALUE SCANNER ============ -->
-  <section id="view-value" class="view">
-    <div class="page-head">
-      <h1>Value Scanner</h1>
-      <p class="sub">Pure-model probabilities vs real bookmaker prices. Only genuine disagreements shown — never simulated odds.</p>
-    </div>
-    <div id="value-note"></div>
-    <table class="table" id="value-table">
-      <thead><tr><th>Fixture</th><th>Market</th><th>Model prob</th><th>Odds</th><th>Edge</th></tr></thead>
-      <tbody></tbody>
-    </table>
-  </section>
-
-  <!-- ============ BACKTEST ============ -->
-  <section id="view-backtest" class="view">
-    <div class="page-head">
-      <h1>Model Report</h1>
-      <p class="sub">Out-of-sample evaluation on the most recent season across all leagues, benchmarked against the bookmaker's own prices.</p>
-    </div>
-    <div class="metrics-row" id="bt-metrics"></div>
-    <div id="bt-verdict" class="verdict"></div>
-    <div class="method-note">
-      <strong>How to read this:</strong> Brier &amp; log-loss measure probability accuracy
-      (lower is better). The bookmaker row is what the market itself achieved on the same
-      matches — the honest ceiling for a goals-only model. ROI simulates betting every market
-      where our model disagreed with the de-margined price by ≥5 points.
-    </div>
-    <button id="bt-run" class="btn primary">Run full evaluation (~2 min)</button>
-  </section>
-
 </main>
+
+<!-- ============ SLIP DRAWER ============ -->
+<div id="slip-overlay" class="overlay hidden"></div>
+<aside id="slip-drawer" class="drawer hidden">
+  <div class="drawer-head">
+    <h3>Bet Slip & Performance</h3>
+    <button id="slip-close" class="btn ghost">×</button>
+  </div>
+  <div class="drawer-body">
+    <div id="slip-items"></div>
+    <div class="slip-log-row">
+      <input type="number" id="slip-stake" value="100" min="10" step="10" title="Stake per selection">
+      <button id="slip-log" class="btn primary">Log to tracker</button>
+      <button id="slip-clear" class="btn ghost">Clear</button>
+    </div>
+    <hr class="sep">
+    <h4>Performance</h4>
+    <div id="perf-metrics" class="metrics-row compact"></div>
+    <div id="bets-history"></div>
+  </div>
+</aside>
 
 <footer class="footer">
   GoalPredict · Dixon-Coles MLE · data: football-data.co.uk · not betting advice

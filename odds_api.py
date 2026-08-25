@@ -84,6 +84,12 @@ def get_live_odds():
 
     except Exception as e:
         print(f"Error fetching odds: {e}")
+        # negative-cache failures so every request doesn't retry the dead API
+        try:
+            with open(CACHE_FILE, 'w') as f:
+                json.dump({}, f)
+        except Exception:
+            pass
         return {}
 
 def calculate_ev(our_probability_percent, bookmaker_odds):
