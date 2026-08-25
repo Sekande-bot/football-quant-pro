@@ -1,17 +1,13 @@
 import requests
 import pandas as pd
 import os
-import streamlit as st
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
 load_dotenv()
 
-# Cloud reads secrets, local reads .env
-try:
-    API_TOKEN = st.secrets["FOOTBALL_DATA_API_KEY"]
-except Exception:
-    API_TOKEN = os.getenv("FOOTBALL_DATA_API_KEY")
+# Cloud platforms inject env vars; locally we read .env
+API_TOKEN = os.getenv("FOOTBALL_DATA_API_KEY")
 
 NAME_MAPPING = {
     "Manchester United": "Man United", "Wolverhampton Wanderers": "Wolves",

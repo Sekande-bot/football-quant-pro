@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QuantPro — Football Prediction Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark">QP</span>
+      <span class="brand-name">Quant<span class="accent">Pro</span></span>
+    </div>
+    <nav>
+      <button class="nav-link active" data-view="predictions">Predictions</button>
+      <button class="nav-link" data-view="value">Value Scanner</button>
+      <button class="nav-link" data-view="backtest">Model Report</button>
+    </nav>
+    <div id="status-pill" class="status-pill loading">Loading…</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ============ PREDICTIONS ============ -->
+  <section id="view-predictions" class="view active">
+    <div class="page-head">
+      <h1>Match Predictions</h1>
+      <p class="sub">Dixon-Coles maximum-likelihood engine, fitted per league with time-decay weighting.</p>
+    </div>
+
+    <div class="filterbar">
+      <div class="seg" id="window-seg">
+        <button data-window="today">Today</button>
+        <button data-window="tomorrow">Tomorrow</button>
+        <button data-window="48h" class="active">Next 48h</button>
+      </div>
+      <select id="league-select"><option value="all">All leagues</option></select>
+      <input type="search" id="search" placeholder="Search team…">
+      <button id="refresh" class="btn ghost" title="Refetch">↻</button>
+    </div>
+
+    <div id="pred-grid" class="grid"></div>
+    <div id="pred-empty" class="empty hidden">No fixtures match. Try another window or league.</div>
+  </section>
+
+  <!-- ============ VALUE SCANNER ============ -->
+  <section id="view-value" class="view">
+    <div class="page-head">
+      <h1>Value Scanner</h1>
+      <p class="sub">Pure-model probabilities vs real bookmaker prices. Only genuine disagreements shown — never simulated odds.</p>
+    </div>
+    <div id="value-note"></div>
+    <table class="table" id="value-table">
+      <thead><tr><th>Fixture</th><th>Market</th><th>Model prob</th><th>Odds</th><th>Edge</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <!-- ============ BACKTEST ============ -->
+  <section id="view-backtest" class="view">
+    <div class="page-head">
+      <h1>Model Report</h1>
+      <p class="sub">Out-of-sample evaluation on the most recent season across all leagues, benchmarked against the bookmaker's own prices.</p>
+    </div>
+    <div class="metrics-row" id="bt-metrics"></div>
+    <div id="bt-verdict" class="verdict"></div>
+    <div class="method-note">
+      <strong>How to read this:</strong> Brier &amp; log-loss measure probability accuracy
+      (lower is better). The bookmaker row is what the market itself achieved on the same
+      matches — the honest ceiling for a goals-only model. ROI simulates betting every market
+      where our model disagreed with the de-margined price by ≥5 points.
+    </div>
+    <button id="bt-run" class="btn primary">Run full evaluation (~2 min)</button>
+  </section>
+
+</main>
+
+<footer class="footer">
+  QuantPro v3 · Dixon-Coles MLE · data: football-data.co.uk · not betting advice
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

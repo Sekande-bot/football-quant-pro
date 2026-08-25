@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: quantpro
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app --workers 1 --threads 4 --timeout 600
+    envVars:
+      - key: FOOTBALL_DATA_API_KEY
+        sync: false
+      - key: SMART_API_KEY
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.13.0

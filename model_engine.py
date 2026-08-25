@@ -22,6 +22,9 @@ import pandas as pd
 from scipy.stats import poisson
 from scipy.optimize import minimize
 from datetime import datetime
+import re
+import unicodedata
+from difflib import get_close_matches
 
 MAX_GOALS = 10
 HALF_LIFE_DAYS = 450.0         # tuned via backtest sweep (90-730); ~1.5yr memory is optimal
@@ -361,6 +364,72 @@ def best_ev_bets(probs, odds_dict, min_edge=3.0):
         if ev is not None and ev >= min_edge:
             bets.append({"market": market, "odds": odds, "prob": probs[market], "ev_pct": ev})
     return sorted(bets, key=lambda b: -b["ev_pct"])
+
+
+# ------------------------------------------------- team name resolution -----
+
+_STOP_TOKENS = {"fc", "cf", "ac", "afc", "cfc", "sc", "club", "de", "cd", "ud",
+                "calcio", "fussball", "sv", "vfl", "vfb", "tsg", "rb", "as", "ss",
+                "ssd", "spa", "balompie", "balompié", "1899", "04", "05", "1"}
+
+
+def _normalize(name):
+    s = unicodedata.normalize("NFKD", str(name)).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^a-z0-9 ]", "", s.lower())
+    tokens = [t for t in s.split() if t not in _STOP_TOKENS]
+    return " ".join(tokens) if tokens else s
+
+
+class TeamResolver:
+    """Maps fixture-API team names to historical DB names via fuzzy matching."""
+
+    # Known API-name -> DB-name pairs fuzzy matching can't find
+    ALIASES = {
+        "athletic club": "Ath Bilbao",
+        "athletic": "Ath Bilbao",
+        "club atletico de madrid": "Atletico Madrid",
+        "paris saint germain fc": "Paris SG",
+        "paris saint germain": "Paris SG",
+        "psg": "Paris SG",
+        "sporting cp": "Sp Gijon",
+        "manchester utd": "Man United",
+    }
+
+    def __init__(self, known_teams):
+        self.known = list(known_teams)
+        self.by_norm = {_normalize(t): t for t in self.known}
+        self.cache = {}
+
+    def resolve(self, api_name):
+        if api_name in self.cache:
+            return self.cache[api_name]
+
+        result = None
+        norm = _normalize(api_name)
+
+        if norm in self.ALIASES and self.ALIASES[norm] in self.by_norm.values():
+            result = self.ALIASES[norm]
+        elif norm in self.by_norm:
+            result = self.by_norm[norm]
+        else:
+            # coverage of the DB name's tokens by the fixture's tokens.
+            # Extra fixture tokens (suffixes, city qualifiers) are tolerated;
+            # every token of the DB name must be present.
+            best, best_score = None, 0.0
+            n_set = set(norm.split())
+            if n_set:
+                for kt_norm, kt in self.by_norm.items():
+                    k_set = set(kt_norm.split())
+                    if not k_set:
+                        continue
+                    coverage = len(n_set & k_set) / len(k_set)
+                    if coverage > best_score:
+                        best, best_score = kt, coverage
+            if best_score >= 0.95:
+                result = best
+
+        self.cache[api_name] = result
+        return result
 
 
 # ------------------------------------------------------------ predictions API

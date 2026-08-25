@@ -3,13 +3,9 @@ import os
 import json
 import time
 from dotenv import load_dotenv
-import streamlit as st
 load_dotenv()
 
-try:
-    SMART_API_KEY = st.secrets["SMART_API_KEY"]
-except Exception:
-    SMART_API_KEY = os.getenv("SMART_API_KEY")
+SMART_API_KEY = os.getenv("SMART_API_KEY")
 CACHE_FILE = "odds_cache.json"
 CACHE_EXPIRY = 3600  # 1 hour
 
@@ -100,18 +96,3 @@ def calculate_ev(our_probability_percent, bookmaker_odds):
     probability = our_probability_percent / 100.0
     ev = (probability * bookmaker_odds) - 1
     return round(ev * 100, 1)
-
-def simulate_bookmaker_odds(our_probs):
-    """
-    Generate realistic bookmaker odds by adding a margin.
-    Bookmakers typically add 5-10% margin (overround).
-    """
-    odds = {}
-    margin = 1.08  # 8% bookmaker margin
-    
-    for market, prob in our_probs.items():
-        if prob > 0:
-            adjusted_prob = min(prob * margin, 95)
-            odds[market] = round(100 / adjusted_prob, 2)
-    
-    return odds

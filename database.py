@@ -1,7 +1,10 @@
+import os
 import sqlite3
 import pandas as pd
 
-DB_NAME = 'football_quant_v2.db'
+# Anchor to this file's directory so every process finds the same DB
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'football_quant_v2.db')
+DB_NAME = DB_PATH
 
 MATCH_COLUMNS = '''
     CREATE TABLE IF NOT EXISTS matches (

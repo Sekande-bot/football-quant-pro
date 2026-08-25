@@ -23,24 +23,23 @@ Backtest summary (~2,970 test matches, all leagues): LogLoss 1.008 vs bookmaker 
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+python server.py          # http://localhost:5000
 ```
 
-Click "Sync Market Data" once to download history into the SQLite DB.
+On first boot the app downloads historical data automatically (~2 min).
 
-## Deploy (Streamlit Community Cloud)
+## Deploy (Render — free tier)
 
-1. Push this repo to GitHub (already at `sekande-bot/football-quant-pro`).
-2. Go to https://share.streamlit.io -> New app -> pick the repo, branch `main`, file `app.py`.
-3. Add secrets in the app settings (equivalent of `.env`):
+1. Push this repo to GitHub (already at `Sekande-bot/football-quant-pro`).
+2. On https://render.com -> **New +** -> **Blueprint** -> select the repo.
+   Render reads `render.yaml` and creates the service.
+3. When prompted, set env vars:
+   - `FOOTBALL_DATA_API_KEY` — your football-data.org key (required for fixtures)
+   - `SMART_API_KEY` — optional, enables live odds blending + EV scanner
+4. Deploy. First boot builds the database automatically; free tier sleeps after
+   15 min idle, then wakes on first request (~30 s cold start).
 
-```toml
-FOOTBALL_DATA_API_KEY = "your-key"
-SMART_API_KEY = "your-key-if-you-have-one"
-```
-
-4. Deploy. On first load click "Sync Market Data" to build the database in the cloud
-   (it is gitignored and rebuilt from source each session).
+Alternative: any host that runs `gunicorn server:app` works (Railway, Fly.io, VPS).
 
 ## Files
 
