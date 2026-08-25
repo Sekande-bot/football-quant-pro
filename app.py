@@ -4,9 +4,9 @@ from datetime import datetime, timedelta
 from database import init_db, get_historical_data
 from scraper import scrape_football_data
 from fixtures import get_upcoming_fixtures
-from model_engine import predict_next_matches
+from model_engine import predict_next_matches, best_ev_bets
 from backtest import run_backtest
-from odds_api import get_live_odds, calculate_ev, simulate_bookmaker_odds
+from odds_api import get_live_odds
 from bets import add_bet, get_my_bets, update_bet_status
 
 # --- PAGE CONFIGURATION ---
@@ -210,14 +210,20 @@ def render_portfolio():
 
 # --- RENDER MATCH CARD ---
 def render_match_card(row, prefix):
-    prob = float(row['Prob %'].replace('%', ''))
+    prob = float(row['Prob %'])
     odds = round((100 / prob) * 1.05, 2)
     sid = f"{prefix}_{row['Fixture']}_{row['Top Pick']}"
     added = any(x['id'] == sid for x in st.session_state.portfolio)
     
     card_class = "card-low" if "LOW" in row['Risk'] else ("card-med" if "MED" in row['Risk'] else "card-high")
     badge_class = "badge-low" if "LOW" in row['Risk'] else ("badge-med" if "MED" in row['Risk'] else "badge-high")
-    
+
+    ev_html = ""
+    best_ev = row.get('Best EV')
+    if isinstance(best_ev, dict) and best_ev:
+        ev_html = (f"<div style='margin-top:8px;'><span class='odds-box' style='background:rgba(16,185,129,0.18);'>"
+                   f"+EV: {best_ev['market']} @ x{best_ev['odds']} ({best_ev['ev_pct']:+.1f}%)</span></div>")
+
     st.markdown(f"""
     <div class="match-card {card_class}">
         <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -225,12 +231,14 @@ def render_match_card(row, prefix):
                 <div style="color:#64748B; font-size:0.75em; text-transform:uppercase; letter-spacing:1px;">{row.get('League', 'Data')} | {row['Date']}</div>
                 <div class="team-names" style="margin-top: 4px; margin-bottom: 8px;">{row['Fixture']}</div>
                 <div style="color:#94A3B8; font-size:0.9em;">
-                    Engine Output: <span style="color:#10B981; font-weight:700;">{row['Top Pick']}</span> | xG Proj: {row['Exp Goals']}
+                    Engine Output: <span style="color:#10B981; font-weight:700;">{row['Top Pick']}</span> | Exp Goals: {row['Exp Goals']}
                 </div>
+                <div style="color:#64748B; font-size:0.8em; margin-top:4px;">Top scores: {row.get('Correct Scores', '')}</div>
             </div>
             <div style="text-align:right;">
-                <div class="odds-box">Yield x{odds}</div><br>
+                <div class="odds-box">Model {prob}%</div><br>
                 <div style="margin-top:8px;"><span class="risk-badge {badge_class}">Risk: {row['Risk']}</span></div>
+                {ev_html}
             </div>
         </div>
     </div>
@@ -326,7 +334,7 @@ with tab2:
                 if not filtered.empty:
                     odds_per_game = target_odds ** (1.0 / num_games)
                     required_prob = (1.0 / odds_per_game) * 100
-                    filtered = filtered[filtered['Prob %'].str.replace('%', '').astype(float) >= max(required_prob, min_conf)]
+                    filtered = filtered[filtered['Prob %'].astype(float) >= max(required_prob, min_conf)]
                     filtered = filtered.sort_values('Prob %', ascending=False).head(num_games)
                     
                     if not filtered.empty:
@@ -379,38 +387,34 @@ with tab3:
 # ==========================================
 with tab4:
     st.markdown("### 📡 Market Edge & Inefficiency Scanner")
-    st.markdown("<p style='color:#94A3B8;'>Detects mathematical discrepancies between AI probability and public market pricing (+EV).</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94A3B8;'>Compares PURE model probabilities to real bookmaker prices. Requires a working odds source — no odds, no fake edges.</p>", unsafe_allow_html=True)
     
     if st.button("🔍 INITIATE DEEP SCAN", use_container_width=True):
         with st.spinner("Scraping and comparing global market data..."):
             fixtures = get_fixtures_filtered()
             if fixtures.empty: st.error("No matches available.")
             else:
-                pred_df = predict_next_matches(df, fixtures)
-                odds_dict = get_live_odds()
-                
-                value_bets = []
-                for idx, row in pred_df.iterrows():
-                    our_probs = row['All_Markets']
-                    bookie = odds_dict.get(row['Fixture'], simulate_bookmaker_odds(our_probs))
+                live = get_live_odds()
+                if not live:
+                    st.error("No real bookmaker odds available (odds source not configured or returned nothing). EV scan aborted - refusing to simulate fake prices.")
+                else:
+                    pred_df = predict_next_matches(df, fixtures, live_odds=live)
+                    value_bets = []
+                    for idx, row in pred_df.iterrows():
+                        for b in best_ev_bets(row['Pure_Markets'], live.get(row['Fixture'], {}), min_edge=3.0):
+                            value_bets.append({
+                                'Fixture': row['Fixture'],
+                                'Market': b['market'],
+                                'Model Prob': f"{b['prob']}%",
+                                'Bookie Odds': f"x{b['odds']}",
+                                '+EV Edge': f"+{b['ev_pct']}%"
+                            })
                     
-                    for market, prob in our_probs.items():
-                        if market in bookie and prob > 0:
-                            ev = calculate_ev(prob, bookie[market])
-                            if ev > 0:
-                                value_bets.append({
-                                    'Fixture': row['Fixture'],
-                                    'Variable': market,
-                                    'True Probability': f"{prob}%",
-                                    'Market Yield': f"x{bookie[market]}",
-                                    '+EV Edge': f"+{ev:.2f}%"
-                                })
-                
-                if value_bets:
-                    vdf = pd.DataFrame(value_bets).sort_values('+EV Edge', ascending=False)
-                    st.success(f"Discovered {len(value_bets)} market inefficiencies.")
-                    st.dataframe(vdf, hide_index=True, use_container_width=True)
-                else: st.info("Market is perfectly priced. No edge detected.")
+                    if value_bets:
+                        vdf = pd.DataFrame(value_bets).sort_values('+EV Edge', ascending=False)
+                        st.success(f"Discovered {len(value_bets)} market inefficiencies.")
+                        st.dataframe(vdf, hide_index=True, use_container_width=True)
+                    else: st.info("No qualifying edge found vs available prices.")
 
 # ==========================================
 # TAB 5: BACKTEST LEDGER (WITH MODEL VALIDATION)
@@ -420,10 +424,10 @@ with tab5:
     
     # Backtest Section
     st.markdown("#### Historical Model Accuracy Test")
-    st.markdown("<p style='color:#94A3B8;'>Simulates predictions on the last 50 completed matches to validate model calibration.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#94A3B8;'>Evaluates probability quality (Brier/log-loss) vs the bookmaker and simulates +EV betting ROI on real historical prices.</p>", unsafe_allow_html=True)
     
     if st.button("🧪 Run Historical Backtest", use_container_width=True):
-        with st.spinner("Processing 50 historical matches..."):
+        with st.spinner("Fitting models chronologically and scoring test matches..."):
             backtest_results = run_backtest(df)
             if not backtest_results.empty:
                 st.session_state.backtest_results = backtest_results
@@ -432,31 +436,30 @@ with tab5:
     if 'backtest_results' in st.session_state:
         bt_df = st.session_state.backtest_results
         
-        wins = len(bt_df[bt_df['Won?'] == "✅"])
-        losses = len(bt_df[bt_df['Won?'] == "❌"])
-        pushes = len(bt_df[bt_df['Won?'] == "➖"])
-        settled = wins + losses
-        win_rate = (wins / settled * 100) if settled > 0 else 0
+        brier = bt_df['Brier'].mean()
+        ll = bt_df['LogLoss'].mean()
+        bm = bt_df['BM_LogLoss'].dropna()
+        bm_ll = bm.mean() if len(bm) else None
+        acc = bt_df['Correct?'].mean() * 100
+        all_bets = [b for recs in bt_df['bets'] for b in recs]
+        roi = (sum(b['return'] for b in all_bets) / len(all_bets) * 100) if all_bets else 0.0
         
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Total Matches", len(bt_df))
-        c2.metric("Wins", wins)
-        c3.metric("Losses", losses)
-        c4.metric("Win Rate (Settled)", f"{win_rate:.1f}%")
+        c1.metric("Test Matches", len(bt_df))
+        c2.metric("Brier Score", f"{brier:.4f}")
+        c3.metric("Model LogLoss", f"{ll:.4f}")
+        c4.metric("1X2 Accuracy", f"{acc:.1f}%")
         
-        st.markdown("#### Calibration by Risk Tier")
-        for level, color in [("🟢 LOW", "#10B981"), ("🟡 MED", "#F59E0B"), ("🔴 HIGH", "#EF4444")]:
-            subset = bt_df[bt_df['Risk'].str.contains(level.split()[1])]
-            s_wins = len(subset[subset['Won?'] == "✅"])
-            s_losses = len(subset[subset['Won?'] == "❌"])
-            s_pushes = len(subset[subset['Won?'] == "➖"])
-            
-            if s_wins + s_losses > 0:
-                wr = (s_wins / (s_wins + s_losses) * 100)
-                st.markdown(f"**{level}:** {s_wins}W / {s_losses}L / {s_pushes}P — <span style='color:{color}; font-weight:bold;'>{wr:.1f}% win rate</span>", unsafe_allow_html=True)
+        if bm_ll is not None:
+            verdict = "✅ BEATS the market" if ll < bm_ll else f"⚠️ {abs(ll - bm_ll):.3f} behind the market"
+            st.markdown(f"**Benchmark:** Bookmaker log-loss on same matches: **{bm_ll:.4f}** — model {verdict}")
+        if all_bets:
+            st.markdown(f"**Betting simulation:** {len(all_bets)} bets at ≥5pt edge → ROI **{roi:+.2f}%**")
         
+        detail = bt_df[['Date', 'League', 'Fixture', 'Score', 'Top Pick', 'Correct?']].copy()
+        detail = detail.sort_values('Date', ascending=False)
         st.markdown("#### Detailed Results")
-        st.dataframe(bt_df[['Date', 'Fixture', 'Top Pick', 'Confidence', 'Risk', 'Actual Result', 'Score', 'Won?']], hide_index=True, use_container_width=True)
+        st.dataframe(detail, hide_index=True, use_container_width=True)
     
     st.divider()
     
