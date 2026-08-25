@@ -18,10 +18,11 @@ API_TOKEN = os.getenv("FOOTBALL_DATA_API_KEY")
 
 COMPETITIONS = {
     "CL": "UEFA Champions League",
-    "EL": "UEFA Europa League",
+    "BSA": "Brazil Serie A",
+    "CLI": "Copa Libertadores",
 }
 
-SEASONS = ["2021", "2022", "2023", "2024", "2025"]
+SEASONS = ["2022", "2023", "2024", "2025"]
 
 NAME_OVERRIDES = {
     # API name -> football-data.co.uk DB name where fuzzy match struggles
@@ -108,8 +109,10 @@ def backfill():
                     continue
                 home = mapper.resolve(m['homeTeam']['name'])
                 away = mapper.resolve(m['awayTeam']['name'])
-                if not home or not away:
-                    continue
+                # For brand-new competitions (Brazil etc.) there is no existing
+                # DB name to map to - keep the API name so the league exists.
+                home = home or m['homeTeam']['name'].strip()
+                away = away or m['awayTeam']['name'].strip()
                 rows.append({
                     "date": m['utcDate'][:10],
                     "home_team": home,
