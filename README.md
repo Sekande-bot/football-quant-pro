@@ -1,4 +1,4 @@
-# Quant Pro Engine v3
+﻿# Quant Pro Engine v3
 
 Dixon-Coles football prediction engine with a Streamlit dashboard.
 
@@ -28,14 +28,14 @@ python server.py          # http://localhost:5000
 
 On first boot the app downloads historical data automatically (~2 min).
 
-## Deploy (Render — free tier)
+## Deploy (Render â€” free tier)
 
 1. Push this repo to GitHub (already at `Sekande-bot/football-quant-pro`).
 2. On https://render.com -> **New +** -> **Blueprint** -> select the repo.
    Render reads `render.yaml` and creates the service.
 3. When prompted, set env vars:
-   - `FOOTBALL_DATA_API_KEY` — your football-data.org key (required for fixtures)
-   - `SMART_API_KEY` — optional, enables live odds blending + EV scanner
+   - `FOOTBALL_DATA_API_KEY` â€” your football-data.org key (required for fixtures)
+   - `SMART_API_KEY` â€” optional, enables live odds blending + EV scanner
 4. Deploy. First boot builds the database automatically; free tier sleeps after
    15 min idle, then wakes on first request (~30 s cold start).
 
@@ -52,3 +52,4 @@ Alternative: any host that runs `gunicorn server:app` works (Railway, Fly.io, VP
 | `odds_api.py` | Live odds fetch + caching |
 | `database.py` | SQLite storage (non-destructive migrations) |
 | `team_news.py` | Injury/suspension hooks (inactive until a real feed is connected) |
+

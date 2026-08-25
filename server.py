@@ -1,4 +1,4 @@
-"""
+﻿"""
 QuantPro - Flask backend serving the prediction API and frontend.
 """
 import os
@@ -15,6 +15,7 @@ from flask import Flask, jsonify, render_template, request
 from database import get_historical_data, init_db
 from model_engine import fit_all_models, predict_match_probs, blend_with_market, \
     select_top_pick, assign_risk_bucket, best_ev_bets, TeamResolver
+from rolling_backtest import confident_pick
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -37,7 +38,7 @@ FIXTURE_TTL = 15 * 60      # refresh fixtures every 15 min
 
 def set_status(msg):
     STATE["status_msg"] = msg
-    print(f"[quantpro] {msg}", flush=True)
+    print(f"[goalpredict] {msg}", flush=True)
 
 
 def ensure_database():
@@ -164,6 +165,7 @@ def api_predictions():
         evs = best_ev_bets(probs, bookie, min_edge=3.0)
         disp = blend_with_market(probs, bookie) if bookie else probs
         pick, pick_p = select_top_pick(disp)
+        banker, banker_p = confident_pick(probs)   # pure-model, honest probability
 
         core = ["Home Win", "Draw", "Away Win"]
         out.append({
@@ -174,6 +176,7 @@ def api_predictions():
             "pick": pick,
             "pick_prob": round(float(pick_p), 1),
             "risk": assign_risk_bucket(pick_p),
+            "banker": {"market": banker, "prob": round(float(banker_p), 1)} if banker else None,
             "oneXtwo": {m: round(float(disp.get(m, 0)), 1) for m in core},
             "over25": round(float(disp.get("Over 2.5", 0)), 1),
             "btts_yes": round(float(disp.get("BTTS Yes", 0)), 1),
@@ -234,3 +237,4 @@ threading.Thread(target=ensure_database, daemon=True).start()
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+

@@ -73,6 +73,7 @@ function cardHTML(p) {
       <span class="pick-chip">${p.pick} · ${p.pick_prob}%</span>
       <span class="risk risk-${rc}">${p.risk}</span>
     </div>
+    ${p.banker ? `<div class="banker-row"><span class="banker-chip">🏦 Banker: ${p.banker.market} · ${p.banker.prob}%</span></div>` : ""}
     <div class="meta-row">
       <span>xG proj <b>${p.exp_goals[0]} – ${p.exp_goals[1]}</b></span>
       <span>O2.5 <b>${p.over25}%</b></span>
