@@ -174,12 +174,18 @@ $("#bb-go").addEventListener("click", async () => {
 });
 
 // ---------- value play ----------
+let valuePoll = null;
 async function loadValue() {
   const tb = $("#value-table tbody");
+  if (valuePoll) clearInterval(valuePoll);
   tb.innerHTML = `<tr><td colspan="6" style="color:var(--text-dim)">Scanning…</td></tr>`;
   try {
     const j = await (await fetch("/api/value?window=48h")).json();
-    if (!j.ready) { tb.innerHTML = `<tr><td colspan="6">${j.message || "Not ready."}</td></tr>`; return; }
+    if (!j.ready) {
+      tb.innerHTML = `<tr><td colspan="6" style="color:var(--text-dim)">Engine warming up: ${j.message || "building data…"} — retrying automatically…</td></tr>`;
+      valuePoll = setTimeout(loadValue, 8000);
+      return;
+    }
     if (!j.blended) {
       tb.innerHTML = `<tr><td colspan="6" style="color:var(--text-dim)">No real odds source connected — set SMART_API_KEY. The scanner never fabricates prices.</td></tr>`;
       return;
@@ -194,7 +200,8 @@ async function loadValue() {
       </tr>`).join("") || `<tr><td colspan="6" style="color:var(--text-dim)">No qualifying edge found.</td></tr>`;
     bindAddButtons(tb);
   } catch {
-    tb.innerHTML = `<tr><td colspan="6">Engine unreachable.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6">Engine unreachable — retrying in 10s…</td></tr>`;
+    valuePoll = setTimeout(loadValue, 10000);
   }
 }
 
@@ -283,11 +290,23 @@ async function loadGames() {
   try {
     const j = await (await fetch(`/api/predictions?window=${state.window}&league=${encodeURIComponent(state.league)}`));
     const data = await j.json();
-    if (!data.ready) { $("#pred-grid").innerHTML = `<div class="empty">${data.message}</div>`; return; }
+    if (!data.ready) {
+      $("#pred-grid").innerHTML = `<div class="empty">Engine warming up: ${data.message}<br>Retrying in 8s…</div>`;
+      setTimeout(loadGames, 8000);
+      return;
+    }
     window.__games = data;
     const sel = $("#league-select");
     if (data.leagues && sel.options.length <= 1) data.leagues.forEach(l => l && sel.add(new Option(l, l)));
     renderGames();
+    // explain empty results
+    if (!data.predictions.length) {
+      const d = data.diag || {};
+      $("#pred-empty").textContent = d.fixtures_in_window
+        ? `${d.fixtures_in_window} fixtures in this window, but none could be modelled (teams outside our covered leagues). Try "Next 48h".`
+        : `No scheduled matches in this window from the fixtures API. Try "Next 48h" — the free API covers limited competitions.`;
+      $("#pred-empty").classList.remove("hidden");
+    }
   } catch {
     $("#pred-grid").innerHTML = `<div class="empty">Engine unreachable.</div>`;
   }

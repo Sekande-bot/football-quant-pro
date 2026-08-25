@@ -11,7 +11,13 @@ LEAGUES = {
     "Serie A": "I1",
     "Ligue 1": "F1",
     "Eredivisie": "N1",
-    "Turkish Super Lig": "T1"
+    "Turkish Super Lig": "T1",
+    # v3.1 additions (verified live on football-data.co.uk)
+    "Primeira Liga": "P1",
+    "Belgian Pro League": "B1",
+    "Scottish Premiership": "SC0",
+    "Greek Super League": "G1",
+    "UEFA Conference League": "ECL",
 }
 
 SEASONS = ["2122", "2223", "2324", "2425", "2526"]

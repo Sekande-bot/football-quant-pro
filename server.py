@@ -54,6 +54,14 @@ def ensure_database():
         except Exception as e:
             set_status(f"Scrape failed: {e}")
             return
+    # top up European competitions from the API (safe to skip on failure)
+    try:
+        import euro_backfill
+        if os.getenv("FOOTBALL_DATA_API_KEY"):
+            set_status("Backfilling Champions League results...")
+            euro_backfill.backfill()
+    except Exception as e:
+        print(f"euro backfill skipped: {e}")
     STATE["db_ready"] = True
     set_status("Database ready.")
 
@@ -203,7 +211,12 @@ def compute_predictions(window="48h", league_filter=None):
     out.sort(key=lambda x: x["pick_prob"], reverse=True)
     leagues = sorted(set(fx.get('league', '') for _, fx in fixtures.iterrows()))
     result = {"ready": True, "has_key": True, "count": len(out),
-              "leagues": leagues, "blended": bool(live), "predictions": out}
+              "leagues": leagues, "blended": bool(live), "predictions": out,
+              "diag": {
+                  "fixtures_in_window": int(len(fdf)),
+                  "resolved_and_predicted": len(out),
+                  "total_fixtures_fetched": int(len(fixtures)),
+              }}
 
     STATE["preds_cache"] = result
     STATE["preds_cache_key"] = cache_key
@@ -359,7 +372,7 @@ def api_build_acca():
 @app.route("/api/value")
 def api_value():
     if not STATE["db_ready"]:
-        return jsonify({"ready": False, "rows": []})
+        return jsonify({"ready": False, "message": STATE["status_msg"], "rows": []})
     data = compute_predictions(request.args.get("window") or "48h",
                                request.args.get("league"))
     rows = []
