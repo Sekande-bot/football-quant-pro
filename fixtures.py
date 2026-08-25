@@ -29,6 +29,29 @@ NAME_MAPPING = {
     "AC Milan": "AC Milan", "Napoli": "Napoli", "PSG": "PSG"
 }
 
+def _get_mls_fixtures():
+    """MLS isn't covered by football-data.org; use fixturedownload.com feed."""
+    try:
+        year = datetime.now().year
+        r = requests.get(f"https://fixturedownload.com/feed/json/mls-{year}",
+                         timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return []
+        out = []
+        for g in r.json():
+            if g.get("HomeTeamScore") is not None:
+                continue  # already played
+            out.append({
+                'home': g["HomeTeam"].strip(),
+                'away': g["AwayTeam"].strip(),
+                'date': g["DateUtc"][:10],
+                'league': "MLS",
+            })
+        return out
+    except Exception:
+        return []
+
+
 def get_upcoming_fixtures():
     if not API_TOKEN:
         print("No API Token found!")
@@ -45,21 +68,23 @@ def get_upcoming_fixtures():
         response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()
         data = response.json()
-        
+
         fixtures = []
         for match in data.get('matches', []):
             home_api = match['homeTeam']['name']
             away_api = match['awayTeam']['name']
-            
+
             fixtures.append({
                 'home': NAME_MAPPING.get(home_api, home_api),
                 'away': NAME_MAPPING.get(away_api, away_api),
                 'date': match['utcDate'].split('T')[0],
                 'league': match.get('competition', {}).get('name', 'Unknown League')
             })
-            
+
+        fixtures += _get_mls_fixtures()
+
         return pd.DataFrame(fixtures)
-        
+
     except Exception as e:
         print(f"API Error: {e}")
         return pd.DataFrame()

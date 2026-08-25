@@ -54,14 +54,20 @@ def ensure_database():
         except Exception as e:
             set_status(f"Scrape failed: {e}")
             return
-    # top up European competitions from the API (safe to skip on failure)
+    # top up European competitions + MLS (safe to skip on failure)
     try:
         import euro_backfill
         if os.getenv("FOOTBALL_DATA_API_KEY"):
-            set_status("Backfilling Champions League results...")
+            set_status("Backfilling Champions League / Brazil results...")
             euro_backfill.backfill()
     except Exception as e:
         print(f"euro backfill skipped: {e}")
+    try:
+        import mls_backfill
+        set_status("Backfilling MLS results...")
+        mls_backfill.backfill_mls()
+    except Exception as e:
+        print(f"MLS backfill skipped: {e}")
     STATE["db_ready"] = True
     set_status("Database ready.")
 
