@@ -44,16 +44,24 @@ def set_status(msg):
 
 def ensure_database():
     """Build DB from scratch on first boot (cloud deploys start empty)."""
+    try:
+        _ensure_database_inner()
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print("[goalpredict] BOOT ERROR:\n" + tb, flush=True)
+        STATE["boot_error"] = tb
+        set_status(f"Boot error: {e}")
+
+
+def _ensure_database_inner():
     init_db()
     df = get_historical_data()
+    set_status(f"Data loaded ({len(df)} rows).")
     if len(df) < 1000:
         set_status("Database empty - downloading historical data (~2 min)...")
         from scraper import scrape_football_data
-        try:
-            scrape_football_data()
-        except Exception as e:
-            set_status(f"Scrape failed: {e}")
-            return
+        scrape_football_data()
     # top up European competitions + MLS (safe to skip on failure)
     try:
         import euro_backfill
@@ -125,6 +133,7 @@ def api_status():
         "db_ready": STATE["db_ready"],
         "message": STATE["status_msg"],
         "backtest_running": STATE["backtest_running"],
+        "boot_error": STATE.get("boot_error"),
     })
 
 
