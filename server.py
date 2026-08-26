@@ -79,6 +79,16 @@ def _ensure_database_inner():
     STATE["db_ready"] = True
     set_status("Database ready.")
 
+    # Pre-fit models in the BACKGROUND so no web request ever blocks on
+    # multi-minute computation (Render/browser kill slow connections).
+    set_status("Fitting league models...")
+    t0 = time.time()
+    df = get_historical_data()
+    STATE["models"] = fit_all_models(df)
+    STATE["models_ts"] = time.time()
+    set_status(f"Ready - {len(STATE['models'])} leagues fitted "
+               f"in {time.time() - t0:.0f}s.")
+
 
 def get_models(force=False):
     with _cache_lock:
@@ -149,6 +159,8 @@ def api_predictions():
 
 def compute_predictions(window="48h", league_filter=None):
     """Core computation shared by all pick endpoints. Cached briefly."""
+    if STATE["models"] is None:
+        return {"ready": False, "message": STATE["status_msg"], "predictions": []}
     cache_key = f"{window}|{league_filter}|{STATE['models_ts']}"
     now = time.time()
     if STATE.get("preds_cache_key") == cache_key and now - STATE.get("preds_cache_ts", 0) < 120:
@@ -176,7 +188,7 @@ def compute_predictions(window="48h", league_filter=None):
     if fdf.empty:
         return {"ready": True, "has_key": True, "predictions": [], "leagues": []}
 
-    models = get_models()
+    models = STATE["models"]   # pre-fitted at boot; never fit inside a request
     live = get_live_odds_safe()
 
     known_teams = set()
