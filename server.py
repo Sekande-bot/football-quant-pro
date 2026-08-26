@@ -438,6 +438,35 @@ def api_settle(bet_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/admin/resync", methods=["POST"])
+def api_admin_resync():
+    """Refresh historical data + refit models. Requires ADMIN_KEY env var."""
+    key = request.args.get("key") or (request.get_json(silent=True) or {}).get("key")
+    if not os.getenv("ADMIN_KEY") or key != os.getenv("ADMIN_KEY"):
+        return jsonify({"ok": False, "error": "unauthorized"}), 403
+    if STATE.get("resync_running"):
+        return jsonify({"ok": False, "running": True})
+
+    def job():
+        STATE["resync_running"] = True
+        try:
+            from scraper import scrape_football_data
+            scrape_football_data()
+            import euro_backfill
+            euro_backfill.backfill()
+            import mls_backfill
+            mls_backfill.backfill_mls()
+            get_models(force=True)
+            set_status("Resync complete.")
+        except Exception as e:
+            set_status(f"Resync failed: {e}")
+        finally:
+            STATE["resync_running"] = False
+
+    threading.Thread(target=job, daemon=True).start()
+    return jsonify({"ok": True, "started": True})
+
+
 def run_backtest_job():
     try:
         from backtest import run_backtest
