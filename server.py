@@ -70,6 +70,44 @@ def ensure_database():
     t.start()
 
 
+def _ensure_database_inner():
+    """Inner function that does the actual database setup work."""
+    init_db()
+    df = get_historical_data()
+    set_status(f"Data loaded ({len(df)} rows).")
+    if len(df) < 1000:
+        set_status("Database empty - downloading historical data (~2 min)...")
+        from scraper import scrape_football_data
+        scrape_football_data()
+    # top up European competitions + MLS (safe to skip on failure)
+    try:
+        import euro_backfill
+        if os.getenv("FOOTBALL_DATA_API_KEY"):
+            set_status("Backfilling Champions League / Brazil results...")
+            euro_backfill.backfill()
+    except Exception as e:
+        print(f"euro backfill skipped: {e}")
+    try:
+        import mls_backfill
+        set_status("Backfilling MLS results...")
+        mls_backfill.backfill_mls()
+    except Exception as e:
+        print(f"MLS backfill skipped: {e}")
+
+    # Pre-fit models in the BACKGROUND so no web request ever blocks on
+    # multi-minute computation (Render/browser kill slow connections).
+    set_status("Fitting league models...")
+    t0 = time.time()
+    df = get_historical_data()
+    STATE["models"] = fit_all_models(df)
+    STATE["models_ts"] = time.time()
+    set_status(f"Ready - {len(STATE['models'])} leagues fitted "
+               f"in {time.time() - t0:.0f}s.")
+
+    STATE["db_ready"] = True
+    set_status("Database ready.")
+
+
 def get_models(force=False):
     with _cache_lock:
         now = time.time()
