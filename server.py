@@ -48,32 +48,6 @@ def set_status(msg):
     print(f"[goalpredict] {msg}", flush=True)
 
 
-def boot_worker():
-    """Wrapper that captures thread lifecycle and any exceptions."""
-    BOOT_STATE["thread_alive"] = True
-    BOOT_STATE["started"] = time.time()
-    try:
-        _ensure_database_inner()
-        BOOT_STATE["thread_alive"] = False
-    except Exception as e:
-        tb = traceback.format_exc()
-        BOOT_STATE["error"] = str(e)
-        BOOT_STATE["traceback"] = tb
-        BOOT_STATE["thread_alive"] = False
-        set_status(f"Boot error: {e}")
-        print("[goalpredict] BOOT ERROR:\n" + tb, flush=True)
-
-
-def ensure_database():
-    """Build DB from scratch on first boot (cloud deploys start empty)."""
-    t = threading.Thread(target=boot_worker, daemon=True)
-    t.start()
-
-
-# Start the database initialization on module import
-ensure_database()
-
-
 def _ensure_database_inner():
     """Inner function that does the actual database setup work."""
     init_db()
@@ -110,6 +84,32 @@ def _ensure_database_inner():
 
     STATE["db_ready"] = True
     set_status("Database ready.")
+
+
+def boot_worker():
+    """Wrapper that captures thread lifecycle and any exceptions."""
+    BOOT_STATE["thread_alive"] = True
+    BOOT_STATE["started"] = time.time()
+    try:
+        _ensure_database_inner()
+        BOOT_STATE["thread_alive"] = False
+    except Exception as e:
+        tb = traceback.format_exc()
+        BOOT_STATE["error"] = str(e)
+        BOOT_STATE["traceback"] = tb
+        BOOT_STATE["thread_alive"] = False
+        set_status(f"Boot error: {e}")
+        print("[goalpredict] BOOT ERROR:\n" + tb, flush=True)
+
+
+def ensure_database():
+    """Build DB from scratch on first boot (cloud deploys start empty)."""
+    t = threading.Thread(target=boot_worker, daemon=True)
+    t.start()
+
+
+# Start the database initialization on module import
+ensure_database()
 
 
 def get_models(force=False):
@@ -554,4 +554,3 @@ threading.Thread(target=ensure_database, daemon=True).start()
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
