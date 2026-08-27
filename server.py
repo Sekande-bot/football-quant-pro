@@ -1,10 +1,8 @@
-﻿"""
-QuantPro - Flask backend serving the prediction API and frontend.
-"""
-import os
+﻿import os
 import re
 import threading
 import time
+import traceback
 import unicodedata
 from difflib import get_close_matches
 from datetime import datetime, timedelta
@@ -17,6 +15,14 @@ from database import get_historical_data, init_db
 from model_engine import fit_all_models, predict_match_probs, blend_with_market, \
     select_top_pick, assign_risk_bucket, best_ev_bets, TeamResolver
 from rolling_backtest import confident_pick
+
+# Global boot state tracker
+BOOT_STATE = {
+    "thread_alive": False,
+    "started": None,
+    "error": None,
+    "traceback": None,
+}
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -42,52 +48,26 @@ def set_status(msg):
     print(f"[goalpredict] {msg}", flush=True)
 
 
-def ensure_database():
-    """Build DB from scratch on first boot (cloud deploys start empty)."""
+def boot_worker():
+    """Wrapper that captures thread lifecycle and any exceptions."""
+    BOOT_STATE["thread_alive"] = True
+    BOOT_STATE["started"] = time.time()
     try:
         _ensure_database_inner()
+        BOOT_STATE["thread_alive"] = False
     except Exception as e:
-        import traceback
         tb = traceback.format_exc()
-        print("[goalpredict] BOOT ERROR:\n" + tb, flush=True)
-        STATE["boot_error"] = tb
+        BOOT_STATE["error"] = str(e)
+        BOOT_STATE["traceback"] = tb
+        BOOT_STATE["thread_alive"] = False
         set_status(f"Boot error: {e}")
+        print("[goalpredict] BOOT ERROR:\n" + tb, flush=True)
 
 
-def _ensure_database_inner():
-    init_db()
-    df = get_historical_data()
-    set_status(f"Data loaded ({len(df)} rows).")
-    if len(df) < 1000:
-        set_status("Database empty - downloading historical data (~2 min)...")
-        from scraper import scrape_football_data
-        scrape_football_data()
-    # top up European competitions + MLS (safe to skip on failure)
-    try:
-        import euro_backfill
-        if os.getenv("FOOTBALL_DATA_API_KEY"):
-            set_status("Backfilling Champions League / Brazil results...")
-            euro_backfill.backfill()
-    except Exception as e:
-        print(f"euro backfill skipped: {e}")
-    try:
-        import mls_backfill
-        set_status("Backfilling MLS results...")
-        mls_backfill.backfill_mls()
-    except Exception as e:
-        print(f"MLS backfill skipped: {e}")
-    STATE["db_ready"] = True
-    set_status("Database ready.")
-
-    # Pre-fit models in the BACKGROUND so no web request ever blocks on
-    # multi-minute computation (Render/browser kill slow connections).
-    set_status("Fitting league models...")
-    t0 = time.time()
-    df = get_historical_data()
-    STATE["models"] = fit_all_models(df)
-    STATE["models_ts"] = time.time()
-    set_status(f"Ready - {len(STATE['models'])} leagues fitted "
-               f"in {time.time() - t0:.0f}s.")
+def ensure_database():
+    """Build DB from scratch on first boot (cloud deploys start empty)."""
+    t = threading.Thread(target=boot_worker, daemon=True)
+    t.start()
 
 
 def get_models(force=False):
