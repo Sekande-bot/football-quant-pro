@@ -70,6 +70,10 @@ def ensure_database():
     t.start()
 
 
+# Start the database initialization on module import
+ensure_database()
+
+
 def _ensure_database_inner():
     """Inner function that does the actual database setup work."""
     init_db()
