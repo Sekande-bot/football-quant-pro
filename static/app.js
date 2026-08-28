@@ -208,7 +208,7 @@ async function loadValue() {
 document.querySelector('[data-view="value"]').addEventListener("click", loadValue);
 
 // ---------- all games ----------
-const state = { window: "48h", league: "all", search: "" };
+const state = { window: "today", league: "all", search: "" };
 
 function riskClass(risk) { return risk.includes("LOW") ? "low" : risk.includes("MED") ? "med" : "high"; }
 
